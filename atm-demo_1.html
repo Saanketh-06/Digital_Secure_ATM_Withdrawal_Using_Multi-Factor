@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Digital Secure ATM — Multi-Factor Withdrawal System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --chassis-1:#1b2027;
+    --chassis-2:#12151a;
+    --chassis-edge:#2a3038;
+    --screen-bg:#07120f;
+    --screen-bg-2:#0a1a16;
+    --accent:#2dd4bf;
+    --accent-dim:#1a7a6e;
+    --amber:#f5a623;
+    --danger:#e2574c;
+    --success:#34d399;
+    --text-main:#dff2ee;
+    --text-muted:#6f8b86;
+    --key-face:#232a31;
+    --key-edge:#333c45;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:
+      radial-gradient(1100px 600px at 50% -10%, #232a33 0%, #14171c 55%, #0c0e11 100%);
+    font-family:'IBM Plex Sans', sans-serif;
+    color:var(--text-main);
+    padding:32px 16px;
+  }
+
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+
+  .plate{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    color:#7c8892;
+    text-transform:uppercase;
+  }
+
+  /* ---------- Kiosk chassis ---------- */
+  .kiosk{
+    width:400px;
+    max-width:92vw;
+    background:linear-gradient(180deg, var(--chassis-1), var(--chassis-2));
+    border-radius:26px;
+    padding:20px 20px 26px;
+    box-shadow:
+      0 30px 60px -20px rgba(0,0,0,.7),
+      inset 0 1px 0 rgba(255,255,255,.05),
+      inset 0 0 0 1px var(--chassis-edge);
+    position:relative;
+  }
+
+  .kiosk-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:2px 6px 14px;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-weight:600;
+    font-size:13px;
+    color:#c9d6d3;
+  }
+  .brand-mark{
+    width:18px;height:18px;border-radius:5px;
+    background:linear-gradient(135deg, var(--accent), var(--accent-dim));
+    box-shadow:0 0 10px rgba(45,212,191,.55);
+  }
+  .status-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--success);
+    box-shadow:0 0 6px var(--success);
+  }
+  .status-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;}
+
+  /* screen + side buttons layout */
+  .screen-unit{
+    display:grid;
+    grid-template-columns:34px 1fr 34px;
+    gap:10px;
+    align-items:stretch;
+  }
+  .side-buttons{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:26px;
+    padding:6px 0;
+  }
+  .fkey{
+    width:30px;height:30px;
+    border-radius:50%;
+    border:1px solid #3a424b;
+    background:linear-gradient(180deg,#2b333b,#1c2127);
+    color:var(--text-muted);
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-family:'IBM Plex Mono',monospace;
+    cursor:pointer;
+    transition:.15s;
+    position:relative;
+  }
+  .fkey.active{
+    color:#0a1a16;
+    background:linear-gradient(180deg, var(--accent), var(--accent-dim));
+    box-shadow:0 0 12px rgba(45,212,191,.6);
+    border-color:transparent;
+  }
+  .fkey:disabled{opacity:.25;cursor:default;}
+  .fkey-label{
+    position:absolute;
+    font-size:8.5px;
+    color:var(--text-muted);
+    white-space:nowrap;
+    font-family:'IBM Plex Mono',monospace;
+    letter-spacing:.02em;
+  }
+  .side-buttons.left .fkey-label{ left:36px; }
+  .side-buttons.right .fkey-label{ right:36px; }
+
+  .screen{
+    background:
+      radial-gradient(140% 100% at 50% 0%, var(--screen-bg-2), var(--screen-bg) 70%);
+    border-radius:10px;
+    min-height:330px;
+    padding:18px 16px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:
+      inset 0 0 0 1px #041310,
+      inset 0 2px 18px rgba(0,0,0,.6);
+    display:flex;
+    flex-direction:column;
+  }
+  .screen::before{
+    content:"";
+    position:absolute;inset:0;
+    background:repeating-linear-gradient(
+      to bottom, rgba(255,255,255,.018) 0px, rgba(255,255,255,.018) 1px,
+      transparent 1px, transparent 3px);
+    pointer-events:none;
+  }
+  .screen-content{
+    position:relative;
+    z-index:1;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  .view{ display:none; flex:1; flex-direction:column; animation:flicker .25s ease; }
+  .view.on{ display:flex; }
+  @keyframes flicker{ from{opacity:.3;} to{opacity:1;} }
+
+  .eyebrow{
+    font-size:10px;
+    letter-spacing:.16em;
+    color:var(--accent);
+    text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  .headline{
+    font-size:16px;
+    font-weight:600;
+    color:var(--text-main);
+    line-height:1.35;
+    margin-bottom:6px;
+  }
+  .sub{
+    font-size:11.5px;
+    color:var(--text-muted);
+    line-height:1.5;
+    margin-bottom:14px;
+  }
+
+  .spacer{flex:1;}
+
+  /* welcome */
+  .welcome-art{
+    display:flex; justify-content:center; margin:18px 0 10px;
+  }
+  .card-slot{
+    width:120px;height:6px;border-radius:3px;
+    background:#000;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.8), 0 0 8px rgba(45,212,191,.15);
+    position:relative;
+  }
+  .card-anim{
+    position:absolute; left:50%; top:-30px;
+    width:70px;height:44px;
+    transform:translateX(-50%);
+    border-radius:5px;
+    background:linear-gradient(135deg,#3a4550,#232a31);
+    border:1px solid #4a5561;
+    animation:insertCard 1.4s ease-in-out infinite;
+  }
+  @keyframes insertCard{
+    0%,20%{ top:-40px; opacity:1;}
+    55%,75%{ top:-2px; opacity:1;}
+    90%,100%{ top:-40px; opacity:0;}
+  }
+
+  .hint-blink{
+    text-align:center;
+    font-size:11px;
+    color:var(--accent);
+    letter-spacing:.1em;
+    animation:blink 1.4s step-start infinite;
+  }
+  @keyframes blink{ 50%{ opacity:.2; } }
+
+  /* pin dots */
+  .dots-row{ display:flex; gap:12px; justify-content:center; margin:14px 0 6px; }
+  .dot{
+    width:13px;height:13px;border-radius:50%;
+    border:1.5px solid var(--accent-dim);
+    background:transparent;
+    transition:.15s;
+  }
+  .dot.filled{ background:var(--accent); box-shadow:0 0 8px rgba(45,212,191,.7); border-color:var(--accent); }
+  .dot.err{ background:var(--danger); border-color:var(--danger); box-shadow:0 0 8px rgba(226,87,76,.7); }
+
+  .msg-line{
+    text-align:center;
+    font-size:11px;
+    min-height:16px;
+    margin-top:4px;
+  }
+  .msg-line.error{ color:var(--danger); }
+  .msg-line.ok{ color:var(--success); }
+  .msg-line.info{ color:var(--text-muted); }
+
+  /* keypad */
+  .keypad{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+    margin-top:auto;
+    padding-top:12px;
+  }
+  .key{
+    background:linear-gradient(180deg, var(--key-face), #1a1f24);
+    border:1px solid var(--key-edge);
+    border-radius:8px;
+    color:var(--text-main);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px;
+    padding:10px 0;
+    cursor:pointer;
+    transition:.08s;
+  }
+  .key:active{ transform:translateY(1px) scale(.97); background:#12161a; }
+  .key.wide{ font-size:10.5px; color:var(--text-muted); letter-spacing:.04em; }
+  .key.go{ color:var(--success); border-color:rgba(52,211,153,.4); }
+  .key.stop{ color:var(--danger); border-color:rgba(226,87,76,.4); }
+
+  /* 2FA method cards */
+  .method-list{ display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+  .method-card{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(45,212,191,.05);
+    border:1px solid rgba(45,212,191,.25);
+    border-radius:8px;
+    padding:10px 12px;
+    cursor:pointer;
+    transition:.12s;
+  }
+  .method-card:hover{ background:rgba(45,212,191,.12); border-color:var(--accent); }
+  .method-icon{ font-size:16px; width:20px; text-align:center; }
+  .method-copy .t{ font-size:12px; font-weight:600; color:var(--text-main); }
+  .method-copy .d{ font-size:10px; color:var(--text-muted); margin-top:1px; }
+
+  /* biometric scan */
+  .scan-wrap{ display:flex; justify-content:center; margin:16px 0; }
+  .scan-ring{
+    width:100px;height:100px;border-radius:50%;
+    border:2px solid rgba(45,212,191,.25);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+  }
+  .scan-ring .icon{ font-size:34px; opacity:.85; }
+  .scan-ring .sweep{
+    position:absolute; inset:-2px;
+    border-radius:50%;
+    border-top:2px solid var(--accent);
+    animation:spin 1.1s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .scan-bar-track{
+    height:4px;background:#0e1a17;border-radius:2px;overflow:hidden;margin-top:14px;
+  }
+  .scan-bar-fill{
+    height:100%;width:0%;
+    background:linear-gradient(90deg,var(--accent-dim),var(--accent));
+    transition:width .05s linear;
+  }
+
+  /* menu grid mapped to side keys */
+  .menu-rows{ display:flex; flex-direction:column; gap:14px; margin-top:8px; flex:1; justify-content:center; }
+  .menu-row{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-main); }
+  .menu-row .arrow{ color:var(--accent); }
+  .menu-row.right{ justify-content:flex-end; text-align:right; }
+
+  .balance-figure{
+    text-align:center; margin:20px 0;
+  }
+  .balance-figure .cur{ font-size:11px; color:var(--text-muted); letter-spacing:.1em; }
+  .balance-figure .amt{ font-size:30px; font-weight:600; color:var(--accent); margin-top:4px; }
+
+  .amount-chip-row{ display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .chip{
+    flex:1 1 40%;
+    background:var(--key-face);
+    border:1px solid var(--key-edge);
+    color:var(--text-main);
+    border-radius:8px;
+    padding:9px 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    text-align:center;
+    cursor:pointer;
+  }
+  .chip:hover{ border-color:var(--accent); color:var(--accent); }
+
+  .amount-display{
+    text-align:center;
+    font-size:24px;
+    font-weight:600;
+    color:var(--text-main);
+    margin:10px 0 2px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+
+  .receipt{
+    background:rgba(255,255,255,.02);
+    border:1px dashed rgba(255,255,255,.15);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:10.5px;
+    color:var(--text-muted);
+    line-height:1.7;
+    margin-top:10px;
+  }
+  .receipt b{ color:var(--text-main); }
+
+  .progress-note{ text-align:center; font-size:12px; color:var(--text-muted); margin-top:14px; }
+
+  .success-check{
+    width:56px;height:56px;border-radius:50%;
+    background:rgba(52,211,153,.12);
+    border:2px solid var(--success);
+    display:flex;align-items:center;justify-content:center;
+    margin:16px auto 6px;
+    font-size:26px; color:var(--success);
+  }
+
+  /* bottom mechanical strip: card slot / cash slot / receipt */
+  .kiosk-footer{
+    display:flex;
+    justify-content:space-between;
+    margin-top:16px;
+    padding:0 6px;
+  }
+  .slot{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:5px;
+  }
+  .slot-bar{
+    width:64px;height:8px;border-radius:2px;
+    background:#04070a;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.9);
+  }
+  .slot-bar.cash{ background:linear-gradient(90deg,#04070a,#0a0f0d,#04070a); }
+  .slot-label{ font-size:8px; letter-spacing:.1em; color:var(--text-muted); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; }
+
+  .footnote{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:#54636a;
+    text-align:center;
+    max-width:400px;
+    line-height:1.6;
+  }
+  .footnote a{ color:var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="plate">Digital Secure ATM — Multi-Factor Withdrawal System · Demo Build</div>
+
+  <div class="kiosk">
+    <div class="kiosk-header">
+      <div class="brand"><span class="brand-mark"></span> SECUREBANK ATM</div>
+      <div class="status-row"><span class="status-dot"></span> ONLINE</div>
+    </div>
+
+    <div class="screen-unit">
+      <div class="side-buttons left" id="leftKeys">
+        <button class="fkey" data-side="left" data-idx="0">‣<span class="fkey-label" style="display:none"></span></button>
+        <button class="fkey" data-side="left" data-idx="1">‣<span class="fkey-label" style="display:none"></span></button>
+        <button class="fkey" data-side="left" data-idx="2">‣<span class="fkey-label" style="display:none"></span></button>
+      </div>
+
+      <div class="screen">
+        <div class="screen-content" id="screenContent">
+
+          <!-- WELCOME -->
+          <div class="view on" id="view-welcome">
+            <div class="eyebrow">Welcome</div>
+            <div class="headline">Please insert your card</div>
+            <div class="sub">4-factor identity verification protects every session: card, PIN, and a biometric or OTP check.</div>
+            <div class="welcome-art">
+              <div class="card-slot"><div class="card-anim"></div></div>
+            </div>
+            <div class="spacer"></div>
+            <div class="hint-blink">TAP SCREEN TO INSERT CARD</div>
+          </div>
+
+          <!-- PIN -->
+          <div class="view" id="view-pin">
+            <div class="eyebrow">Step 1 of 2 · Card ****4471</div>
+            <div class="headline">Enter your 4-digit PIN</div>
+            <div class="dots-row" id="pinDots">
+              <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+            <div class="msg-line" id="pinMsg"></div>
+            <div class="keypad" id="pinKeypad"></div>
+          </div>
+
+          <!-- 2FA CHOICE -->
+          <div class="view" id="view-2fa-choice">
+            <div class="eyebrow">Step 2 of 2 · Identity confirmed</div>
+            <div class="headline">Choose a second factor</div>
+            <div class="sub">Any one method completes verification.</div>
+            <div class="method-list">
+              <div class="method-card" data-method="finger">
+                <div class="method-icon">🖐️</div>
+                <div class="method-copy"><div class="t">Fingerprint scan</div><div class="d">Place finger on the sensor</div></div>
+              </div>
+              <div class="method-card" data-method="face">
+                <div class="method-icon">🙂</div>
+                <div class="method-copy"><div class="t">Face recognition</div><div class="d">Look at the camera</div></div>
+              </div>
+              <div class="method-card" data-method="otp">
+                <div class="method-icon">💬</div>
+                <div class="method-copy"><div class="t">OTP verification</div><div class="d">Code sent to registered mobile</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BIOMETRIC SCAN -->
+          <div class="view" id="view-scan">
+            <div class="eyebrow" id="scanEyebrow">Scanning</div>
+            <div class="headline" id="scanHeadline">Hold still</div>
+            <div class="scan-wrap">
+              <div class="scan-ring"><div class="icon" id="scanIcon">🖐️</div><div class="sweep"></div></div>
+            </div>
+            <div class="scan-bar-track"><div class="scan-bar-fill" id="scanBar"></div></div>
+            <div class="progress-note" id="scanNote">Reading biometric signature…</div>
+          </div>
+
+          <!-- OTP -->
+          <div class="view" id="view-otp">
+            <div class="eyebrow">OTP verification</div>
+            <div class="headline">Enter the 6-digit code</div>
+            <div class="sub" id="otpHint">Code sent to +91 •• ••• ••812</div>
+            <div class="dots-row" id="otpDots"></div>
+            <div class="msg-line" id="otpMsg"></div>
+            <div class="keypad" id="otpKeypad"></div>
+          </div>
+
+          <!-- VERIFIED -->
+          <div class="view" id="view-verified">
+            <div class="success-check">✓</div>
+            <div class="headline" style="text-align:center">Identity verified</div>
+            <div class="sub" style="text-align:center">Loading your account…</div>
+          </div>
+
+          <!-- MAIN MENU -->
+          <div class="view" id="view-menu">
+            <div class="eyebrow">Session active · Card ****4471</div>
+            <div class="headline">How can we help you today?</div>
+            <div class="menu-rows">
+              <div class="menu-row"><span class="arrow">◂</span> Check balance</div>
+              <div class="menu-row right">Withdraw cash <span class="arrow">▸</span></div>
+              <div class="menu-row"><span class="arrow">◂</span> Deposit cash</div>
+              <div class="menu-row right">End session <span class="arrow">▸</span></div>
+            </div>
+          </div>
+
+          <!-- BALANCE -->
+          <div class="view" id="view-balance">
+            <div class="eyebrow">Account ····6210 · Savings</div>
+            <div class="headline">Available balance</div>
+            <div class="balance-figure"><div class="cur">INR</div><div class="amt" id="balanceAmt">₹0.00</div></div>
+            <div class="spacer"></div>
+            <div class="hint-blink">◂ BACK TO MENU</div>
+          </div>
+
+          <!-- WITHDRAW AMOUNT -->
+          <div class="view" id="view-withdraw">
+            <div class="eyebrow">Withdraw cash</div>
+            <div class="headline">Select or enter an amount</div>
+            <div class="amount-chip-row">
+              <div class="chip" data-amt="500">₹500</div>
+              <div class="chip" data-amt="1000">₹1,000</div>
+              <div class="chip" data-amt="2000">₹2,000</div>
+              <div class="chip" data-amt="5000">₹5,000</div>
+            </div>
+            <div class="sub" style="margin-bottom:2px;">Or key in a custom amount (multiples of ₹100)</div>
+            <div class="amount-display" id="wdAmount">₹0</div>
+            <div class="msg-line" id="wdMsg"></div>
+            <div class="keypad" id="wdKeypad"></div>
+          </div>
+
+          <!-- WITHDRAW CONFIRM -->
+          <div class="view" id="view-withdraw-confirm">
+            <div class="eyebrow">Confirm withdrawal</div>
+            <div class="headline" id="wdConfirmHeadline">Dispense ₹0?</div>
+            <div class="sub">Remaining balance after this transaction will update on your receipt.</div>
+            <div class="spacer"></div>
+            <div class="hint-blink" id="dispenseHint">◂ CANCEL &nbsp;&nbsp;&nbsp; CONFIRM ▸</div>
+          </div>
+
+          <!-- DISPENSING -->
+          <div class="view" id="view-dispensing">
+            <div class="eyebrow">Please wait</div>
+            <div class="headline">Counting cash…</div>
+            <div class="scan-bar-track"><div class="scan-bar-fill" id="dispenseBar"></div></div>
+            <div class="progress-note">Do not remove cash until dispensed</div>
+          </div>
+
+          <!-- WITHDRAW DONE -->
+          <div class="view" id="view-withdraw-done">
+            <div class="success-check">✓</div>
+            <div class="headline" style="text-align:center" id="wdDoneHeadline">Please take your cash</div>
+            <div class="receipt" id="wdReceipt"></div>
+            <div class="spacer"></div>
+            <div class="hint-blink">◂ MAIN MENU</div>
+          </div>
+
+          <!-- DEPOSIT AMOUNT -->
+          <div class="view" id="view-deposit">
+            <div class="eyebrow">Deposit cash</div>
+            <div class="headline">Enter amount to deposit</div>
+            <div class="sub">Insert cash into the tray after confirming.</div>
+            <div class="amount-display" id="depAmount">₹0</div>
+            <div class="msg-line" id="depMsg"></div>
+            <div class="keypad" id="depKeypad"></div>
+          </div>
+
+          <!-- DEPOSIT CONFIRM -->
+          <div class="view" id="view-deposit-confirm">
+            <div class="eyebrow">Confirm deposit</div>
+            <div class="headline" id="depConfirmHeadline">Deposit ₹0?</div>
+            <div class="sub">Please place cash in the tray once confirmed.</div>
+            <div class="spacer"></div>
+            <div class="hint-blink">◂ CANCEL &nbsp;&nbsp;&nbsp; CONFIRM ▸</div>
+          </div>
+
+          <!-- DEPOSITING -->
+          <div class="view" id="view-depositing">
+            <div class="eyebrow">Please wait</div>
+            <div class="headline">Verifying and counting notes…</div>
+            <div class="scan-bar-track"><div class="scan-bar-fill" id="depositBar"></div></div>
+            <div class="progress-note">Do not remove cash tray</div>
+          </div>
+
+          <!-- DEPOSIT DONE -->
+          <div class="view" id="view-deposit-done">
+            <div class="success-check">✓</div>
+            <div class="headline" style="text-align:center">Deposit successful</div>
+            <div class="receipt" id="depReceipt"></div>
+            <div class="spacer"></div>
+            <div class="hint-blink">◂ MAIN MENU</div>
+          </div>
+
+          <!-- EXIT -->
+          <div class="view" id="view-exit">
+            <div class="eyebrow">Session ended</div>
+            <div class="headline">Thank you for banking with us</div>
+            <div class="sub">Please take your card.</div>
+            <div class="spacer"></div>
+            <div class="hint-blink">TAP TO START A NEW SESSION</div>
+          </div>
+
+          <!-- LOCKOUT -->
+          <div class="view" id="view-lockout">
+            <div class="eyebrow" style="color:var(--danger)">Security lock</div>
+            <div class="headline">Card retained</div>
+            <div class="sub">Too many failed attempts were made. In a live deployment, this card would be retained and the account flagged. This demo will now reset.</div>
+            <div class="spacer"></div>
+            <div class="hint-blink" style="color:var(--danger)">TAP TO RESET DEMO</div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="side-buttons right" id="rightKeys">
+        <button class="fkey" data-side="right" data-idx="0">‣<span class="fkey-label" style="display:none"></span></button>
+        <button class="fkey" data-side="right" data-idx="1">‣<span class="fkey-label" style="display:none"></span></button>
+        <button class="fkey" data-side="right" data-idx="2">‣<span class="fkey-label" style="display:none"></span></button>
+      </div>
+    </div>
+
+    <div class="kiosk-footer">
+      <div class="slot"><div class="slot-bar"></div><div class="slot-label">Card</div></div>
+      <div class="slot"><div class="slot-bar cash" id="cashBar"></div><div class="slot-label">Cash</div></div>
+      <div class="slot"><div class="slot-bar" id="receiptBar"></div><div class="slot-label">Receipt</div></div>
+    </div>
+  </div>
+
+  <div class="footnote">Simulated demo of the "Digital Secure ATM Withdrawal System Using Multi-Factor Authentication" project. Demo PIN <b style="color:var(--text-main)">1234</b>. No real banking, biometric, or SMS systems are used — every scan and OTP is generated locally in your browser.</div>
+</div>
+
+<script>
+(function(){
+  const CORRECT_PIN = "1234";
+  let state = {
+    pin: "",
+    otp: "",
+    otpTarget: "",
+    method: "",
+    attempts: 0,
+    otpAttempts: 0,
+    balance: 45320,
+    wdAmount: "",
+    depAmount: ""
+  };
+
+  const views = {};
+  document.querySelectorAll(".view").forEach(v => views[v.id] = v);
+  function show(id){
+    Object.values(views).forEach(v => v.classList.remove("on"));
+    views[id].classList.add("on");
+    clearSideKeys();
+    ROUTES[id] && ROUTES[id]();
+  }
+
+  // ---- side function keys ----
+  const leftBtns = [...document.querySelectorAll('[data-side="left"]')];
+  const rightBtns = [...document.querySelectorAll('[data-side="right"]')];
+  function clearSideKeys(){
+    [...leftBtns, ...rightBtns].forEach(b=>{
+      b.classList.remove("active");
+      b.onclick = null;
+      b.disabled = true;
+      const lbl = b.querySelector('.fkey-label');
+      lbl.style.display = "none";
+    });
+  }
+  function setKey(btn, label, fn){
+    btn.disabled = false;
+    btn.classList.add("active");
+    btn.onclick = fn;
+    const lbl = btn.querySelector('.fkey-label');
+    lbl.textContent = label;
+    lbl.style.display = "block";
+  }
+
+  // ---- generic keypad builder ----
+  function buildKeypad(container, opts){
+    const onDigit = opts.onDigit, onClear = opts.onClear, onEnter = opts.onEnter, enterLabel = opts.enterLabel || "ENTER";
+    container.innerHTML = "";
+    const layout = ["1","2","3","4","5","6","7","8","9","CLR","0","GO"];
+    layout.forEach(k=>{
+      const b = document.createElement("button");
+      b.className = "key";
+      if(k === "CLR"){ b.classList.add("stop","wide"); b.textContent = "CLEAR"; b.onclick = onClear; }
+      else if(k === "GO"){ b.classList.add("go","wide"); b.textContent = enterLabel; b.onclick = onEnter; }
+      else { b.textContent = k; b.onclick = ()=>onDigit(k); }
+      container.appendChild(b);
+    });
+  }
+
+  // ================= WELCOME =================
+  views["view-welcome"].onclick = ()=>{ state.pin=""; state.otp=""; state.attempts=0; state.otpAttempts=0; renderPinDots(); show("view-pin"); };
+
+  // ================= PIN =================
+  const pinDotsEl = document.getElementById("pinDots");
+  const pinMsg = document.getElementById("pinMsg");
+  function renderPinDots(err){
+    const dots = pinDotsEl.querySelectorAll(".dot");
+    dots.forEach((d,i)=>{
+      d.className = "dot" + (i < state.pin.length ? " filled" : "") + (err ? " err" : "");
+    });
+  }
+  buildKeypad(document.getElementById("pinKeypad"), {
+    onDigit:(d)=>{
+      if(state.pin.length>=4) return;
+      state.pin += d;
+      renderPinDots();
+      pinMsg.textContent = "";
+      if(state.pin.length===4) setTimeout(checkPin, 200);
+    },
+    onClear:()=>{ state.pin=""; renderPinDots(); pinMsg.textContent=""; },
+    onEnter:()=>{ if(state.pin.length===4) checkPin(); else { pinMsg.textContent="Enter all 4 digits"; pinMsg.className="msg-line error"; } },
+    enterLabel:"ENTER"
+  });
+  function checkPin(){
+    if(state.pin === CORRECT_PIN){
+      pinMsg.textContent = "PIN accepted"; pinMsg.className="msg-line ok";
+      setTimeout(()=>show("view-2fa-choice"), 500);
+    } else {
+      state.attempts++;
+      renderPinDots(true);
+      if(state.attempts>=3){
+        pinMsg.textContent = "Too many incorrect attempts"; pinMsg.className="msg-line error";
+        setTimeout(()=>show("view-lockout"), 900);
+      } else {
+        pinMsg.textContent = `Incorrect PIN — ${3-state.attempts} attempt(s) left (try 1234)`; pinMsg.className="msg-line error";
+        setTimeout(()=>{ state.pin=""; renderPinDots(); }, 700);
+      }
+    }
+  }
+
+  // ================= 2FA CHOICE =================
+  document.querySelectorAll(".method-card").forEach(card=>{
+    card.onclick = ()=>{
+      state.method = card.dataset.method;
+      if(state.method === "otp") startOtp();
+      else startScan(state.method);
+    };
+  });
+
+  // ================= BIOMETRIC SCAN =================
+  const scanIcon = document.getElementById("scanIcon");
+  const scanHeadline = document.getElementById("scanHeadline");
+  const scanEyebrow = document.getElementById("scanEyebrow");
+  const scanBar = document.getElementById("scanBar");
+  const scanNote = document.getElementById("scanNote");
+  function startScan(method){
+    show("view-scan");
+    if(method === "finger"){
+      scanIcon.textContent = "🖐️"; scanHeadline.textContent = "Hold your finger on the sensor";
+      scanEyebrow.textContent = "Fingerprint scan"; scanNote.textContent = "Reading fingerprint ridges…";
+    } else {
+      scanIcon.textContent = "🙂"; scanHeadline.textContent = "Look directly at the camera";
+      scanEyebrow.textContent = "Face recognition"; scanNote.textContent = "Mapping facial landmarks…";
+    }
+    scanBar.style.width = "0%";
+    let pct = 0;
+    const timer = setInterval(()=>{
+      pct += 4;
+      scanBar.style.width = Math.min(pct,100)+"%";
+      if(pct>=100){
+        clearInterval(timer);
+        scanNote.textContent = "Match confirmed";
+        setTimeout(()=>show("view-verified"), 450);
+      }
+    }, 45);
+  }
+
+  // ================= OTP =================
+  const otpDotsEl = document.getElementById("otpDots");
+  const otpMsg = document.getElementById("otpMsg");
+  const otpHint = document.getElementById("otpHint");
+  function startOtp(){
+    state.otp = "";
+    state.otpTarget = String(Math.floor(100000 + Math.random()*900000));
+    otpHint.innerHTML = `Code sent to +91 •• ••• ••812 — <span style="color:var(--accent)">demo code: ${state.otpTarget}</span>`;
+    renderOtpDots();
+    otpMsg.textContent = "";
+    show("view-otp");
+  }
+  function renderOtpDots(err){
+    otpDotsEl.innerHTML = "";
+    for(let i=0;i<6;i++){
+      const d = document.createElement("div");
+      d.className = "dot" + (i<state.otp.length ? " filled":"") + (err ? " err":"");
+      otpDotsEl.appendChild(d);
+    }
+  }
+  buildKeypad(document.getElementById("otpKeypad"), {
+    onDigit:(d)=>{
+      if(state.otp.length>=6) return;
+      state.otp += d;
+      renderOtpDots();
+      otpMsg.textContent="";
+      if(state.otp.length===6) setTimeout(checkOtp, 200);
+    },
+    onClear:()=>{ state.otp=""; renderOtpDots(); otpMsg.textContent=""; },
+    onEnter:()=>{ if(state.otp.length===6) checkOtp(); else { otpMsg.textContent="Enter the 6-digit code"; otpMsg.className="msg-line error"; } },
+    enterLabel:"VERIFY"
+  });
+  function checkOtp(){
+    if(state.otp === state.otpTarget){
+      otpMsg.textContent="Code verified"; otpMsg.className="msg-line ok";
+      setTimeout(()=>show("view-verified"), 450);
+    } else {
+      state.otpAttempts++;
+      renderOtpDots(true);
+      if(state.otpAttempts>=3){
+        otpMsg.textContent="Too many incorrect attempts"; otpMsg.className="msg-line error";
+        setTimeout(()=>show("view-lockout"), 900);
+      } else {
+        otpMsg.textContent=`Incorrect code — ${3-state.otpAttempts} attempt(s) left`; otpMsg.className="msg-line error";
+        setTimeout(()=>{ state.otp=""; renderOtpDots(); }, 700);
+      }
+    }
+  }
+
+  // ================= VERIFIED -> MENU =================
+  function autoAdvanceVerified(){ setTimeout(()=>show("view-menu"), 1100); }
+
+  // ================= MENU =================
+  function money(n){ return "₹" + n.toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function routeMenu(){
+    setKey(leftBtns[0], "CHECK BALANCE", ()=>show("view-balance"));
+    setKey(leftBtns[1], "DEPOSIT CASH", ()=>{ state.depAmount=""; show("view-deposit"); });
+    setKey(rightBtns[0], "WITHDRAW CASH", ()=>{ state.wdAmount=""; show("view-withdraw"); });
+    setKey(rightBtns[1], "END SESSION", ()=>show("view-exit"));
+  }
+
+  // ================= BALANCE =================
+  function routeBalance(){
+    document.getElementById("balanceAmt").textContent = money(state.balance);
+    setKey(leftBtns[0], "BACK", ()=>show("view-menu"));
+  }
+
+  // ================= WITHDRAW =================
+  const wdKeypad = document.getElementById("wdKeypad");
+  const wdAmountEl = document.getElementById("wdAmount");
+  const wdMsg = document.getElementById("wdMsg");
+  document.querySelectorAll(".chip").forEach(chip=>{
+    chip.onclick = ()=>{ state.wdAmount = chip.dataset.amt; wdAmountEl.textContent = "₹"+Number(state.wdAmount).toLocaleString("en-IN"); wdMsg.textContent=""; };
+  });
+  buildKeypad(wdKeypad, {
+    onDigit:(d)=>{
+      if(state.wdAmount.length>=6) return;
+      state.wdAmount = (state.wdAmount==="0"?"":state.wdAmount) + d;
+      wdAmountEl.textContent = "₹"+Number(state.wdAmount||0).toLocaleString("en-IN");
+      wdMsg.textContent="";
+    },
+    onClear:()=>{ state.wdAmount=""; wdAmountEl.textContent="₹0"; wdMsg.textContent=""; },
+    onEnter:()=> validateWithdraw(),
+    enterLabel:"NEXT"
+  });
+  function routeWithdraw(){
+    wdAmountEl.textContent = state.wdAmount ? "₹"+Number(state.wdAmount).toLocaleString("en-IN") : "₹0";
+    wdMsg.textContent="";
+    setKey(leftBtns[0], "BACK", ()=>show("view-menu"));
+  }
+  function validateWithdraw(){
+    const amt = Number(state.wdAmount||0);
+    if(amt<=0){ wdMsg.textContent="Enter an amount"; wdMsg.className="msg-line error"; return; }
+    if(amt % 100 !== 0){ wdMsg.textContent="Amount must be a multiple of ₹100"; wdMsg.className="msg-line error"; return; }
+    if(amt > state.balance){ wdMsg.textContent="Insufficient balance"; wdMsg.className="msg-line error"; return; }
+    document.getElementById("wdConfirmHeadline").textContent = `Dispense ${money(amt)}?`;
+    show("view-withdraw-confirm");
+  }
+  function routeWithdrawConfirm(){
+    setKey(leftBtns[0], "CANCEL", ()=>show("view-withdraw"));
+    setKey(rightBtns[0], "CONFIRM", ()=>{
+      show("view-dispensing");
+      const bar = document.getElementById("dispenseBar");
+      bar.style.width="0%"; let p=0;
+      const t = setInterval(()=>{
+        p+=5; bar.style.width=Math.min(p,100)+"%";
+        if(p>=100){
+          clearInterval(t);
+          state.balance -= Number(state.wdAmount);
+          const now = new Date();
+          document.getElementById("wdReceipt").innerHTML =
+            `<b>SecureBank ATM</b><br>Txn: WDL-${Math.floor(Math.random()*900000+100000)}<br>` +
+            `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}<br>` +
+            `Amount withdrawn: <b>${money(Number(state.wdAmount))}</b><br>` +
+            `Available balance: <b>${money(state.balance)}</b>`;
+          setTimeout(()=>show("view-withdraw-done"), 400);
+        }
+      }, 40);
+    });
+  }
+  function routeWithdrawDone(){
+    setKey(leftBtns[0], "MAIN MENU", ()=>show("view-menu"));
+  }
+
+  // ================= DEPOSIT =================
+  const depKeypad = document.getElementById("depKeypad");
+  const depAmountEl = document.getElementById("depAmount");
+  const depMsg = document.getElementById("depMsg");
+  buildKeypad(depKeypad, {
+    onDigit:(d)=>{
+      if(state.depAmount.length>=6) return;
+      state.depAmount = (state.depAmount==="0"?"":state.depAmount) + d;
+      depAmountEl.textContent = "₹"+Number(state.depAmount||0).toLocaleString("en-IN");
+      depMsg.textContent="";
+    },
+    onClear:()=>{ state.depAmount=""; depAmountEl.textContent="₹0"; depMsg.textContent=""; },
+    onEnter:()=> validateDeposit(),
+    enterLabel:"NEXT"
+  });
+  function routeDeposit(){
+    depAmountEl.textContent = state.depAmount ? "₹"+Number(state.depAmount).toLocaleString("en-IN") : "₹0";
+    depMsg.textContent="";
+    setKey(leftBtns[0], "BACK", ()=>show("view-menu"));
+  }
+  function validateDeposit(){
+    const amt = Number(state.depAmount||0);
+    if(amt<=0){ depMsg.textContent="Enter an amount"; depMsg.className="msg-line error"; return; }
+    if(amt % 100 !== 0){ depMsg.textContent="Amount must be a multiple of ₹100"; depMsg.className="msg-line error"; return; }
+    document.getElementById("depConfirmHeadline").textContent = `Deposit ${money(amt)}?`;
+    show("view-deposit-confirm");
+  }
+  function routeDepositConfirm(){
+    setKey(leftBtns[0], "CANCEL", ()=>show("view-deposit"));
+    setKey(rightBtns[0], "CONFIRM", ()=>{
+      show("view-depositing");
+      const bar = document.getElementById("depositBar");
+      bar.style.width="0%"; let p=0;
+      const t = setInterval(()=>{
+        p+=5; bar.style.width=Math.min(p,100)+"%";
+        if(p>=100){
+          clearInterval(t);
+          state.balance += Number(state.depAmount);
+          const now = new Date();
+          document.getElementById("depReceipt").innerHTML =
+            `<b>SecureBank ATM</b><br>Txn: DEP-${Math.floor(Math.random()*900000+100000)}<br>` +
+            `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}<br>` +
+            `Amount deposited: <b>${money(Number(state.depAmount))}</b><br>` +
+            `Available balance: <b>${money(state.balance)}</b>`;
+          setTimeout(()=>show("view-deposit-done"), 400);
+        }
+      }, 40);
+    });
+  }
+  function routeDepositDone(){
+    setKey(leftBtns[0], "MAIN MENU", ()=>show("view-menu"));
+  }
+
+  // ================= EXIT / LOCKOUT =================
+  views["view-exit"].onclick = ()=>{ resetDemo(); show("view-welcome"); };
+  views["view-lockout"].onclick = ()=>{ resetDemo(); show("view-welcome"); };
+  function resetDemo(){
+    const keepBalance = state.balance;
+    state = { pin:"", otp:"", otpTarget:"", method:"", attempts:0, otpAttempts:0, balance: keepBalance, wdAmount:"", depAmount:"" };
+  }
+
+  const ROUTES = {
+    "view-verified": autoAdvanceVerified,
+    "view-menu": routeMenu,
+    "view-balance": routeBalance,
+    "view-withdraw": routeWithdraw,
+    "view-withdraw-confirm": routeWithdrawConfirm,
+    "view-withdraw-done": routeWithdrawDone,
+    "view-deposit": routeDeposit,
+    "view-deposit-confirm": routeDepositConfirm,
+    "view-deposit-done": routeDepositDone
+  };
+
+  show("view-welcome");
+})();
+</script>
+</body>
+</html>
